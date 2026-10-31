@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from playwright.async_api import async_playwright
 
 # Ensure Playwright finds the downloaded browser on Render
-os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "/opt/render/project/.cache/ms-playwright"
+
 
 app = FastAPI(title="UPES Attendance API")
 
@@ -33,6 +33,7 @@ def compute_bunks(attended: int, total: int, target: float = 75.0):
         needed = math.ceil((target * total - 100.0 * attended) / (100.0 - target))
         return {"percentage": round(pct, 2), "safe": False, "bunks": 0, "needed": max(0, needed)}
 
+@app.get("/")
 def health_check():
     return {"status": "Backend running"}
 
