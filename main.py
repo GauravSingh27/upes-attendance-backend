@@ -33,10 +33,10 @@ def compute_bunks(attended: int, total: int, target: float = 75.0):
         needed = math.ceil((target * total - 100.0 * attended) / (100.0 - target))
         return {"percentage": round(pct, 2), "safe": False, "bunks": 0, "needed": max(0, needed)}
 
-@app.get("/")
 def health_check():
     return {"status": "Backend running"}
 
+@app.post("/")
 @app.post("/api/attendance")
 @app.post("/api/attendance/")
 async def get_attendance(data: LoginRequest):
