@@ -39,6 +39,7 @@ def health_check():
     return {"status": "Backend running"}
 
 @app.post("/api/attendance")
+@app.post("/api/attendance/")
 async def get_attendance(data: LoginRequest):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
