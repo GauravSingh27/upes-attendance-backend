@@ -53,51 +53,80 @@ async def get_attendance(data: LoginRequest):
         )
         page = await browser.new_page()
         try:
-            # 1. Open Portal
-            await page.goto("https://myupes-beta.upes.ac.in/", wait_until="networkidle", timeout=45000)
+            # 1. Open Portal using domcontentloaded to prevent networkidle stalls
+            await page.goto("https://myupes-beta.upes.ac.in/", wait_until="domcontentloaded", timeout=45000)
+            await page.wait_for_timeout(3000)
 
-            # 2. Handle Username / Email input
-            user_input = page.locator('input[formcontrolname="username"], input[name="username"], input[type="email"], input[name="loginfmt"]').first
-            await user_input.wait_for(state="visible", timeout=15000)
-            
-            # Click and simulate actual keyboard typing so Angular registers validation
+            # Debug log to track redirects in Render console
+            print(f"[DEBUG] Current URL: {page.url} | Title: {await page.title()}")
+
+            # 2. Check for an initial "Sign In" or "Student Login" landing button
+            login_entry_btn = page.locator('text=Sign In, text=Login, text=Student Login, button:has-text("Sign In")').first
+            if await login_entry_btn.is_visible():
+                await login_entry_btn.click()
+                await page.wait_for_timeout(2000)
+
+            # 3. Locate Username / Email field (covers UPES Angular portal, Microsoft SSO, and standard inputs)
+            user_input = page.locator(
+                'input[type="email"], input[name="loginfmt"], input[name="username"], '
+                'input[formcontrolname="username"], input[id*="user"], input[id*="email"], '
+                'input[placeholder*="Email" i], input[placeholder*="SAP" i]'
+            ).first
+
+            await user_input.wait_for(state="visible", timeout=30000)
             await user_input.click()
             await user_input.fill("")
-            await page.keyboard.type(data.email, delay=50)
-
-            # 3. Handle Password input
-            pwd_input = page.locator('input[formcontrolname="password"], input[name="password"], input[type="password"], input[name="passwd"]').first
-            await pwd_input.wait_for(state="visible", timeout=10000)
-            await pwd_input.click()
-            await pwd_input.fill("")
-            await page.keyboard.type(data.password, delay=50)
-
-            # Allow Angular change detection cycle to evaluate form validity
+            await page.keyboard.type(data.email, delay=30)
+            await page.keyboard.press("Tab")
             await page.wait_for_timeout(1000)
 
-            # 4. Locate and click submit
-            submit_btn = page.locator('button[type="submit"], input[type="submit"]').first
-            await submit_btn.wait_for(state="visible", timeout=10000)
-            
-            try:
-                await submit_btn.click(timeout=5000)
-            except Exception:
+            # 4. Handle Microsoft SSO "Next" button if username and password are on separate steps
+            next_btn = page.locator('input[type="submit"][value="Next"], button:has-text("Next")').first
+            if await next_btn.is_visible():
+                await next_btn.click()
+                await page.wait_for_timeout(2000)
+
+            # 5. Locate Password field
+            pwd_input = page.locator(
+                'input[type="password"], input[name="passwd"], input[name="password"], '
+                'input[formcontrolname="password"], input[id*="password"]'
+            ).first
+
+            await pwd_input.wait_for(state="visible", timeout=20000)
+            await pwd_input.click()
+            await pwd_input.fill("")
+            await page.keyboard.type(data.password, delay=30)
+            await page.wait_for_timeout(1000)
+
+            # 6. Submit the form
+            submit_btn = page.locator(
+                'button[type="submit"], input[type="submit"], button:has-text("Sign in"), button:has-text("Login")'
+            ).first
+
+            if await submit_btn.is_visible():
+                try:
+                    await submit_btn.click(timeout=5000)
+                except Exception:
+                    await pwd_input.press("Enter")
+            else:
                 await pwd_input.press("Enter")
 
-            # 5. Handle Microsoft "Stay signed in?" screen if prompted
+            # 7. Dismiss "Stay signed in?" screen if Microsoft SSO prompts
             try:
-                stay_signed_in = page.locator('input[type="submit"][value="Yes"], input[value="Sign in"]').first
-                await stay_signed_in.wait_for(state="visible", timeout=4000)
+                stay_signed_in = page.locator('input[type="submit"][value="Yes"], input[value="Sign in"], button:has-text("Yes")').first
+                await stay_signed_in.wait_for(state="visible", timeout=5000)
                 await stay_signed_in.click()
             except Exception:
                 pass
 
-            # 6. Navigate to Student Attendance
-            await page.wait_for_selector("text=View Student Attendance", timeout=25000)
-            await page.click("text=View Student Attendance")
-            await page.wait_for_load_state("networkidle")
+            # 8. Wait for dashboard and navigate to Attendance
+            await page.wait_for_timeout(3000)
+            attendance_trigger = page.locator('text=View Student Attendance, text=Attendance, a[href*="attendance"]').first
+            await attendance_trigger.wait_for(state="visible", timeout=30000)
+            await attendance_trigger.click()
+            await page.wait_for_timeout(4000)
 
-            # 7. Extract subject ledger details
+            # 9. Extract ledger data from the table
             records = await page.evaluate('''() => {
                 const rows = Array.from(document.querySelectorAll("table tbody tr"));
                 return rows.map(r => {
@@ -119,5 +148,8 @@ async def get_attendance(data: LoginRequest):
             return {"success": True, "data": results}
 
         except Exception as e:
+            # Print page state upon failure for debugging in Render logs
+            print(f"[ERROR] Failed at URL: {page.url}")
             await browser.close()
             raise HTTPException(status_code=400, detail=str(e))
+          
