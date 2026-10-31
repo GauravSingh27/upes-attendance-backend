@@ -42,14 +42,17 @@ def health_check():
 async def get_attendance(data: LoginRequest):
     async with async_playwright() as p:
         browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--single-process"
-            ]
-        )
+    headless=True,
+    args=[
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--no-zygote",
+        "--single-process",
+        "--disable-extensions"
+    ]
+)
         page = await browser.new_page()
         try:
             # 1. Open Portal
