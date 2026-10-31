@@ -10,7 +10,6 @@ os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "/opt/render/project/.cache/ms-playwrig
 
 app = FastAPI(title="UPES Attendance API")
 
-# Enable CORS so your Cloudflare Pages frontend can call this backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
